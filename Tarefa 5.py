@@ -99,7 +99,7 @@ def comparar(nome_modelo, golds, preds, questions):
     print(f"Precisão: {percentagem:.2f}% ({acertos} corretas em {len(golds)})")
     print("=" * 65)
 
-    header = f"{'Real \\ Prev':<12} | " + " | ".join([f"{c[:4]:<4}" for c in VALID_LABELS])
+    header = "{:<12} | ".format("Real / Prev") + " | ".join([f"{c[:4]:<4}" for c in VALID_LABELS])
     print(header)
     print("-" * len(header))
 
