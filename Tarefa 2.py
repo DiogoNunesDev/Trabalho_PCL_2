@@ -1,4 +1,5 @@
 import csv
+import os
 import subprocess
 import sys
 
@@ -7,6 +8,7 @@ VALID_LABELS = ["GEOGRAPHY", "MUSIC", "LITERATURE", "HISTORY", "SCIENCE"]
 EVAL_INPUT = "eval.txt"
 EVAL_QUESTIONS = "eval-questions.txt"
 EVAL_LABELS = "eval-labels.txt"
+RESULTS_DIR = "Tarefa2-results"
 
 INCLUDE_ANSWER_IN_INPUT = True
 
@@ -51,7 +53,7 @@ def prepare_eval_data(
 
 def run_and_evaluate(mode, counts_dir, questions_file, labels_file, train_file="train.txt"):
     slug = mode.lstrip("-")
-    result_file = f"result_{slug}.txt"
+    result_file = os.path.join(RESULTS_DIR, f"result_{slug}.txt")
 
     with open(result_file, "w", encoding="utf-8") as fout:
         subprocess.run(
@@ -78,6 +80,8 @@ def run_and_evaluate(mode, counts_dir, questions_file, labels_file, train_file="
 
 
 def main():
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
     prepare_eval_data(
         eval_input_path=EVAL_INPUT,
         questions_output_path=EVAL_QUESTIONS,

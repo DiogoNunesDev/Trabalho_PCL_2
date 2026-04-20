@@ -4,7 +4,6 @@ import re
 import math
 import sys
 import subprocess
-import tempfile
 from collections import Counter
 
 import nltk
@@ -26,14 +25,16 @@ UNIGRAM_PREFIX = "unigrams_pp_"
 BIGRAM_PREFIX = "bigrams_pp_"
 
 PREPROCESSED_TRAIN = os.path.join(DATA_DIR, "train_preprocessed.txt")
-EVAL_QUESTIONS = "eval-questions-t3.txt"
-EVAL_LABELS = "eval-labels-t3.txt"
+EVAL_QUESTIONS = "eval-questions.txt"
+EVAL_LABELS = "eval-labels.txt"
+RESULTS_DIR = "Tarefa3-results"
 
 INCLUDE_ANSWER_IN_INPUT = True
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(UNIGRAMS_DIR, exist_ok=True)
 os.makedirs(BIGRAMS_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
 def ensure_nltk():
@@ -370,22 +371,11 @@ def main():
         print("\n" + "=" * 60)
 
         predictions = run_classifier(mode, EVAL_QUESTIONS)
-
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            suffix=".txt",
-            delete=False,
-        ) as temp_pred_file:
-            temp_pred_path = temp_pred_file.name
-
-        try:
-            save_predictions(temp_pred_path, predictions)
-            print(f"Resultados de avaliação para {mode}:")
-            evaluate_predictions(EVAL_LABELS, temp_pred_path)
-        finally:
-            if os.path.exists(temp_pred_path):
-                os.remove(temp_pred_path)
+        result_path = os.path.join(RESULTS_DIR, f"result_{mode.lstrip('-')}.txt")
+        save_predictions(result_path, predictions)
+        print(f"Previsões guardadas em: {result_path}")
+        print(f"Resultados de avaliação para {mode}:")
+        evaluate_predictions(EVAL_LABELS, result_path)
 
 
 if __name__ == "__main__":

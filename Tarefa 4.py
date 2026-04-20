@@ -1,4 +1,5 @@
 import csv
+import os
 import random
 from collections import Counter, defaultdict
 
@@ -18,8 +19,11 @@ else:
 print("Device used:", device)
 
 MODEL_NAME = "google/flan-t5-base"
+RESULTS_DIR = "Tarefa4-results"
 
 VALID_LABELS = ["GEOGRAPHY", "MUSIC", "LITERATURE", "HISTORY", "SCIENCE"]
+
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=False)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, token=False)
@@ -195,6 +199,11 @@ def accuracy_score_simple(y_true, y_pred):
     return sum(int(a == b) for a, b in zip(y_true, y_pred)) / len(y_true)
 
 
+def write_labels(path, labels):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(labels))
+
+
 def print_metrics_with_evaluate(title, y_true, y_pred):
     if title:
         print(f"\n{title}")
@@ -330,6 +339,7 @@ def main():
     )
 
     truth_full = zero_eval_full["truth"]
+    write_labels(os.path.join(RESULTS_DIR, "result_zero_full.txt"), zero_eval_full["predictions"])
 
     print_metrics_with_evaluate(
         "LLM Zero-shot - Eval completo",
@@ -344,6 +354,7 @@ def main():
         prompt_type="few-shot",
         few_shot_examples=few_shot_examples
     )
+    write_labels(os.path.join(RESULTS_DIR, "result_few_full.txt"), few_eval_full["predictions"])
 
     print_metrics_with_evaluate(
         "LLM Few-shot - Eval completo",
