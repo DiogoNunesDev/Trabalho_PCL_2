@@ -159,8 +159,8 @@ def normalize_prediction(text):
 def classify_with_local_llm(
     question,
     answer,
-    prompt_type="zero-shot",
-    few_shot_examples=None,
+    prompt_type,
+    few_shot_examples,
     stochastic=False,
     temperature=0.7,
     top_p=0.9

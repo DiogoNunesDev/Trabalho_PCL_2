@@ -2,6 +2,7 @@
 Classificador n-grama: lê modelos (contagens por etiqueta) e etiqueta cada linha
 de um ficheiro de questões+respostas (uma instância por linha).
 """
+
 import argparse
 import csv
 import math
@@ -15,27 +16,34 @@ VALID_LABELS = ["GEOGRAPHY", "MUSIC", "LITERATURE", "HISTORY", "SCIENCE"]
 
 
 def tokenize_eval_line(line):
-    return [t.lower() for t in word_tokenize(line) if t.isalnum()]
+    # Mantém texto original e pontuação; apenas tokeniza
+    return word_tokenize(line)
 
 
 def vocabulary_from_train(train_path="train.txt"):
     """
-    |V| para alisamento: tipos distintos em todo o texto de treino (pergunta+resposta),
-    com a mesma tokenização que na classificação.
+    Calcula |V| para smoothing a partir de todo o texto de treino
+    (question + answer), e não por categoria.
     """
     vocab = set()
+
     with open(train_path, "r", encoding="utf-8", newline="") as f:
         reader = csv.reader(f, delimiter="\t", quotechar='"')
+
         for row in reader:
             if not row or len(row) < 3:
                 continue
+
             label = row[0].strip()
             if label not in VALID_LABELS:
                 continue
+
             question = row[1].strip()
             answer = "\t".join(row[2:]).strip()
+
             text = f"{question} {answer}"
             vocab.update(tokenize_eval_line(text))
+
     return vocab
 
 
@@ -44,27 +52,34 @@ def load_models(directory, is_bigram=False):
     global_vocab = set()
     prefix = "bigrams_" if is_bigram else "unigrams_"
 
+    if not os.path.isdir(directory):
+        raise FileNotFoundError(f"A diretoria '{directory}' não existe.")
+
     for filename in os.listdir(directory):
         if not filename.endswith(".txt") or not filename.startswith(prefix):
             continue
-        # unigrams_GEOGRAPHY.txt -> GEOGRAPHY
-        rest = filename[len(prefix) :]
+
+        rest = filename[len(prefix):]
         if not rest.endswith(".txt"):
             continue
-        label = rest[: -len(".txt")]
+
+        label = rest[:-len(".txt")]
         if label not in VALID_LABELS:
             continue
 
         counts = {}
         total_tokens = 0
         path = os.path.join(directory, filename)
+
         with open(path, "r", encoding="utf-8") as f:
-            next(f)  # cabeçalho
+            next(f, None)  # salta cabeçalho
             for line in f:
                 parts = line.strip().split()
                 if not parts:
                     continue
+
                 freq = int(parts[-1])
+
                 if is_bigram:
                     if len(parts) < 3:
                         continue
@@ -74,42 +89,56 @@ def load_models(directory, is_bigram=False):
                 else:
                     gram = parts[0]
                     global_vocab.add(gram)
+
                 counts[gram] = freq
                 total_tokens += freq
 
-        models[label] = {"counts": counts, "total": total_tokens}
+        models[label] = {
+            "counts": counts,
+            "total": total_tokens
+        }
+
+    if not models:
+        raise ValueError(f"Não foi possível carregar modelos da pasta '{directory}'.")
 
     return models, global_vocab
 
 
 def run_classifier(mode, counts_dir, input_file, train_path="train.txt"):
-    is_bi = mode in ("-bigrams", "-smooth")
-    models, vocab_from_counts = load_models(counts_dir, is_bigram=is_bi)
+    is_bigram = mode in ("-bigrams", "-smooth")
+    models, vocab_from_counts = load_models(counts_dir, is_bigram=is_bigram)
 
     if mode == "-smooth":
         train_vocab = vocabulary_from_train(train_path)
         v_size = len(train_vocab)
         if v_size == 0:
-            raise ValueError("O vocabulário de treino está vazio")
+            raise ValueError("O vocabulário de treino está vazio.")
     else:
         v_size = len(vocab_from_counts)
 
     results = []
+
     with open(input_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.rstrip("\n")
+
             if not line.strip():
                 results.append("UNKNOWN")
                 continue
 
             tokens = tokenize_eval_line(line)
+
+            if not tokens:
+                results.append("UNKNOWN")
+                continue
+
             best_label = None
             max_log_prob = -float("inf")
 
             for label, data in models.items():
-                log_prob = 0.0
                 counts = data["counts"]
                 total = data["total"]
+                log_prob = 0.0
 
                 if mode == "-unigrams":
                     for t in tokens:
@@ -118,7 +147,7 @@ def run_classifier(mode, counts_dir, input_file, train_path="train.txt"):
 
                 elif mode == "-bigrams":
                     if len(tokens) < 2:
-                        log_prob = 0.0
+                        log_prob = -float("inf")
                     else:
                         for i in range(len(tokens) - 1):
                             bi = (tokens[i], tokens[i + 1])
@@ -130,7 +159,7 @@ def run_classifier(mode, counts_dir, input_file, train_path="train.txt"):
 
                 elif mode == "-smooth":
                     if len(tokens) < 2:
-                        log_prob = 0.0
+                        log_prob = -float("inf")
                     else:
                         for i in range(len(tokens) - 1):
                             bi = (tokens[i], tokens[i + 1])
@@ -148,50 +177,58 @@ def run_classifier(mode, counts_dir, input_file, train_path="train.txt"):
 
 def main(argv=None):
     nltk.download("punkt_tab", quiet=True)
+    try:
+        nltk.download("punkt", quiet=True)
+    except Exception:
+        pass
 
     parser = argparse.ArgumentParser(
-        description="Classifica linhas (pergunta\\tresposta) com modelos n-grama por etiqueta."
+        description="Classifica linhas (question\\tanswer) com modelos n-grama por etiqueta."
     )
+
     mx = parser.add_mutually_exclusive_group(required=True)
     mx.add_argument(
         "-unigrams",
         action="store_const",
         const="-unigrams",
         dest="mode",
-        help="Modelo de unigramas.",
+        help="Modelo de unigramas."
     )
     mx.add_argument(
         "-bigrams",
         action="store_const",
         const="-bigrams",
         dest="mode",
-        help="Modelo de bigramas sem alisamento.",
+        help="Modelo de bigramas sem alisamento."
     )
     mx.add_argument(
         "-smooth",
         action="store_const",
         const="-smooth",
         dest="mode",
-        help="Modelo de bigramas com alisamento (|V| a partir de todo o train.txt).",
+        help="Modelo de bigramas com alisamento."
     )
+
     parser.add_argument(
         "counts_dir",
-        help="Diretoria com unigrams_<ETIQUETA>.txt e/ou bigrams_<ETIQUETA>.txt",
+        help="Diretoria com unigrams_<ETIQUETA>.txt e/ou bigrams_<ETIQUETA>.txt"
     )
     parser.add_argument(
         "questions_file",
-        help="Ficheiro com uma questão (e resposta) por linha, ex.: eval-questions.txt",
+        help="Ficheiro com uma questão (e resposta) por linha, ex.: eval-questions.txt"
     )
     parser.add_argument(
         "--train",
         default="train.txt",
-        help="Treino para calcular |V| em -smooth (predefinição: train.txt).",
+        help="Ficheiro de treino para calcular |V| em -smooth (default: train.txt)."
     )
+
     args = parser.parse_args(argv)
 
     if not os.path.isdir(args.counts_dir):
         print(f"Diretoria inexistente: {args.counts_dir}", file=sys.stderr)
         sys.exit(1)
+
     if not os.path.isfile(args.questions_file):
         print(f"Ficheiro inexistente: {args.questions_file}", file=sys.stderr)
         sys.exit(1)

@@ -1,50 +1,72 @@
-import nltk
-from collections import Counter
-from nltk import ngrams
+import csv
 import os
+from collections import Counter
 
-categories = {"GEOGRAPHY":"", "MUSIC":"", "LITERATURE":"", "HISTORY":"", "SCIENCE":""}
+import nltk
+from nltk import ngrams
 
-train_to_list = []
+VALID_LABELS = ["GEOGRAPHY", "MUSIC", "LITERATURE", "HISTORY", "SCIENCE"]
 
-with open("train.txt", encoding="utf-8") as f:
-  lines = f.read().split("\n")[:-1]
-  for line in lines:
-    line_formated = line.split("\t")
+nltk.download("punkt_tab", quiet=True)
+try:
+    nltk.download("punkt", quiet=True)
+except Exception:
+    pass
 
-    train_to_list.append(line_formated)
+os.makedirs("counts", exist_ok=True)
+os.makedirs("counts2", exist_ok=True)
 
-    category = line_formated[0]
-    question = line_formated[1]
-    answear = line_formated[2]
 
-    categories[category]+= question + " "  + answear
+def preprocess_text(text):
+    # Mantém texto original e pontuação; apenas tokeniza
+    tokens = nltk.word_tokenize(text)
+    return tokens
 
-nltk.download('punkt_tab')
-os.makedirs('counts', exist_ok=True)
-os.makedirs('counts2', exist_ok=True)
 
-for c in categories:
-    raw_tokens = nltk.word_tokenize(categories[c].lower())
+def main():
+    categories = {label: [] for label in VALID_LABELS}
 
-    tokens = [t for t in raw_tokens if t.isalnum()]
+    with open("train.txt", "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f, delimiter="\t", quotechar='"')
 
-    # UNIGRAMAS 
-    unigram_counts = Counter(ngrams(tokens, 1))
-    filename_uni = f"counts/unigrams_{c.replace(' ', '_')}.txt"
+        for row in reader:
+            if not row or len(row) < 3:
+                continue
 
-    with open(filename_uni, 'w', encoding='utf-8') as f:
-        f.write("Unigramas\n")
-        for gram, freq in unigram_counts.most_common():
-            f.write(f"{gram[0]} {freq}\n")
+            label = row[0].strip()
+            if label not in VALID_LABELS:
+                continue
 
-    # BIGRAMAS
-    bigram_counts = Counter(ngrams(tokens, 2))
-    filename_bi = f"counts/bigrams_{c.replace(' ', '_')}.txt"
+            question = row[1].strip()
+            answer = "\t".join(row[2:]).strip()
 
-    with open(filename_bi, 'w', encoding='utf-8') as f:
-        f.write("Bigramas\n")
-        for gram, freq in bigram_counts.most_common():
-            f.write(f"{gram[0]} {gram[1]} {freq}\n")
+            text = f"{question} {answer}"
+            tokens = preprocess_text(text)
 
-    print(f"Processado: {c} ({len(tokens)} palavras limpas)")
+            categories[label].extend(tokens)
+
+    for label in VALID_LABELS:
+        tokens = categories[label]
+
+        # UNIGRAMAS -> counts
+        unigram_counts = Counter(ngrams(tokens, 1))
+        filename_uni = f"counts/unigrams_{label}.txt"
+
+        with open(filename_uni, "w", encoding="utf-8") as f:
+            f.write("Unigramas\n")
+            for gram, freq in unigram_counts.most_common():
+                f.write(f"{gram[0]} {freq}\n")
+
+        # BIGRAMAS -> counts2
+        bigram_counts = Counter(ngrams(tokens, 2))
+        filename_bi = f"counts2/bigrams_{label}.txt"
+
+        with open(filename_bi, "w", encoding="utf-8") as f:
+            f.write("Bigramas\n")
+            for gram, freq in bigram_counts.most_common():
+                f.write(f"{gram[0]} {gram[1]} {freq}\n")
+
+        print(f"Processado: {label} ({len(tokens)} tokens)")
+
+if __name__ == "__main__":
+    main()
